@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070a13" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="حاسبة بيانات احترافية ومستقرة مع تنزيل الملفات ودعم الموبايل" />
+  <title>حاسبة البيانات الذكية - النسخة المطورة</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { min-height: 100%; background: #070a13; }
+    html, body { overscroll-behavior-x: none; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      padding-top: max(32px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(64px, env(safe-area-inset-bottom, 0px));
+      font-family: Cairo, system-ui, sans-serif;
+      background: #070a13;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+    button, input, select { font: inherit; }
+    button { user-select: none; }
+    /* تحسين الأداء عبر تقليل الثقل البصري لمنع التهنيج على الجوال */
+    .glass { background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(148, 163, 184, 0.12); contain: paint; }
+    header { top: max(32px, env(safe-area-inset-top, 0px)); }
+    #toastContainer { bottom: max(1rem, calc(env(safe-area-inset-bottom, 0px) + 1rem)); }
+    .glow { box-shadow: 0 0 20px rgba(99, 102, 241, 0.15); }
+    .app-card { transition: transform 0.12s ease, border-color 0.12s ease; will-change: transform; }
+    .app-card:active { transform: scale(0.96); }
+    
+    /* Bottom Sheet وتحسين التعامل مع الكيبورد */
+    .sheet-backdrop { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; background: rgba(3, 7, 18, 0.8); }
+    .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+    .bottom-sheet { 
+      transform: translateY(105%); 
+      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); 
+      will-change: transform; 
+      max-height: min(85dvh, calc(var(--viewport-height, 100dvh) - max(32px, env(safe-area-inset-top, 0px))));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .bottom-sheet.open { transform: translateY(0); }
+    .bottom-sheet.dragging { transition: none; }
+    
+    .no-scroll { overflow: hidden; }
+    .focus-ring:focus-visible { outline: 2px solid rgba(129, 140, 248, 0.8); outline-offset: 2px; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(129, 140, 248, 0.3); border-radius: 999px; }
+  </style>
+</head>
+<body>
+  <!-- الشريط العلوي -->
+  <header class="glass sticky top-0 z-30 border-x-0 border-t-0 px-4 py-3">
+    <div class="mx-auto flex max-w-2xl items-center justify-between gap-2">
+      <div class="flex min-w-0 items-center gap-2.5">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 shadow-md shadow-indigo-900/40"><i class="fa-solid fa-microchip text-sm"></i></div>
+        <div class="min-w-0">
+          <h1 class="truncate text-xs font-black text-indigo-200">حاسبة البيانات الاحترافية</h1>
+          <p class="text-[9px] text-slate-400">إصدار عالي الاستقرار وخفيف</p>
+        </div>
+      </div>
+      <div class="flex shrink-0 gap-1.5">
+        <button id="downloadBtn" class="focus-ring flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-emerald-300 transition hover:bg-slate-700" title="تنزيل تقرير TXT" aria-label="تنزيل تقرير TXT"><i class="fa-solid fa-download text-xs"></i></button>
+        <button id="backupBtn" class="focus-ring flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-cyan-300 transition hover:bg-slate-700" title="تنزيل نسخة احتياطية JSON" aria-label="تنزيل نسخة احتياطية JSON"><i class="fa-solid fa-database text-xs"></i></button>
+        <button id="restoreBtn" class="focus-ring flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-amber-300 transition hover:bg-slate-700" title="استرجاع نسخة احتياطية" aria-label="استرجاع نسخة احتياطية"><i class="fa-solid fa-upload text-xs"></i></button>
+        <button id="copyBtn" class="focus-ring flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-indigo-300 transition hover:bg-slate-700" title="نسخ الملخص" aria-label="نسخ الملخص"><i class="fa-solid fa-copy text-xs"></i></button>
+        <button id="resetBtn" class="focus-ring flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-rose-300 transition hover:bg-rose-500/20" title="مسح السجلات" aria-label="مسح السجلات"><i class="fa-solid fa-rotate-right text-xs"></i></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- المحتوى الرئيسي -->
+  <main class="mx-auto w-full max-w-2xl space-y-3.5 px-4 py-3">
+    <section class="grid grid-cols-2 gap-2.5 sm:grid-cols-3" id="appsGrid" aria-label="مصادر البيانات"></section>
+
+    <section class="glass rounded-2xl p-3.5">
+      <div class="mb-2.5 flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+        <h2 class="flex items-center gap-1.5 text-xs font-bold text-indigo-200"><i class="fa-solid fa-list-check"></i> السجلات والعمليات</h2>
+        <span id="totalOperationsCount" class="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-200">0 عملية</span>
+      </div>
+      <div id="resultsList" class="max-h-60 space-y-2 overflow-y-auto pr-1"></div>
+    </section>
+
+    <section class="glass glow flex items-center justify-between gap-3 rounded-2xl border-indigo-500/40 p-3.5">
+      <div>
+        <span class="block text-[10px] text-slate-400">المجموع الكلي المعتمد</span>
+        <span class="text-[9px] font-medium text-emerald-400">محسوب بدقة عالية</span>
+      </div>
+      <strong id="grandTotal" class="text-left text-sm font-black tracking-wide text-emerald-400 sm:text-lg">0.0000 ميجا بايت</strong>
+    </section>
+  </main>
+
+  <!-- واجهة الإدخال السفلية (Bottom Sheet) -->
+  <div id="sheetBackdrop" class="sheet-backdrop fixed inset-0 z-40"></div>
+  <section id="inputSheet" class="bottom-sheet glass fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-2xl rounded-t-[1.75rem] border-b-0 border-x-0 p-4 shadow-2xl" role="dialog" aria-modal="true" aria-hidden="true">
+    <div id="sheetHandle" class="mx-auto mb-3 h-1.5 w-12 cursor-grab rounded-full bg-slate-600 active:cursor-grabbing" aria-label="اسحب للأسفل للإغلاق"></div>
+    <div class="mb-4 flex items-center justify-between">
+      <h3 id="modalTitle" class="flex items-center gap-2 text-xs font-bold text-white"></h3>
+      <button id="closeBtn" class="focus-ring flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 transition hover:text-white" aria-label="إغلاق"><i class="fa-solid fa-xmark text-sm"></i></button>
+    </div>
+    <form id="dataForm" class="space-y-3" novalidate>
+      <div>
+        <label for="dataInput" class="mb-1 block text-[11px] font-semibold text-slate-400">القيمة</label>
+        <input id="dataInput" type="number" inputmode="decimal" min="0.000001" step="any" autocomplete="off" placeholder="أدخل الرقم هنا..." class="focus-ring w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none" required />
+      </div>
+      <div>
+        <label for="unitSelect" class="mb-1 block text-[11px] font-semibold text-slate-400">وحدة القياس</label>
+        <select id="unitSelect" class="focus-ring w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none">
+          <option value="mega">ميجا بايت (MB)</option>
+          <option value="giga">جيجا بايت (GB)</option>
+        </select>
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button type="submit" class="focus-ring flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-xs font-bold text-white shadow-lg shadow-indigo-900/40 transition hover:brightness-110"><i class="fa-solid fa-plus-circle ml-1"></i> حساب وإضافة</button>
+        <button type="button" id="cancelBtn" class="focus-ring rounded-xl bg-slate-800 px-4 py-3 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">إلغاء</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- الإشعارات المؤقتة (Toasts) -->
+  <input id="backupInput" type="file" accept="application/json,.json" class="hidden" aria-label="استيراد نسخة احتياطية" />
+  <div id="toastContainer" class="pointer-events-none fixed bottom-4 left-4 right-4 z-[60] flex flex-col items-center gap-2"></div>
+
+  <script>
+    'use strict';
+    const STORAGE_KEY = 'smart_data_calculator_v4';
+    const LEGACY_STORAGE_KEYS = ['smart_data_calculator_v3', 'smart_data_calculator_v2', 'appRecords_data'];
+    const MAX_RECORDS = 1000;
+    const MAX_INPUT_VALUE = 1000000000;
+    const MEGA_PER_GIGA = 1024;
+    const DISPLAY_DECIMALS = 4;
+    const apps = [
+      {id:'youtube',name:'يوتيوب',icon:'fa-brands fa-youtube',color:'text-red-400',bg:'bg-red-500/10',border:'border-red-500/20',type:'normal'},
+      {id:'facebook',name:'فيسبوك',icon:'fa-brands fa-facebook',color:'text-blue-400',bg:'bg-blue-500/10',border:'border-blue-500/20',type:'normal'},
+      {id:'instagram',name:'إنستجرام',icon:'fa-brands fa-instagram',color:'text-pink-400',bg:'bg-pink-500/10',border:'border-pink-500/20',type:'normal'},
+      {id:'tiktok',name:'تيك توك',icon:'fa-brands fa-tiktok',color:'text-cyan-300',bg:'bg-cyan-400/10',border:'border-cyan-400/20',type:'normal'},
+      {id:'messaging',name:'تطبيقات مراسلة',desc:'واتساب، تلغرام',icon:'fa-solid fa-comments',color:'text-emerald-400',bg:'bg-emerald-400/10',border:'border-emerald-400/20',type:'social'},
+      {id:'ai',name:'الذكاء الاصطناعي',icon:'fa-solid fa-brain',color:'text-purple-400',bg:'bg-purple-400/10',border:'border-purple-400/20',type:'ai'},
+      {id:'others',name:'تطبيقات أخرى',icon:'fa-solid fa-globe',color:'text-amber-400',bg:'bg-amber-400/10',border:'border-amber-400/20',type:'normal'}
+    ];
+    let records = loadRecords();
+    let activeApp = null;
+    let audioContext = null;
+
+    const $ = id => document.getElementById(id);
+    function calculateResultMega(app, input, unit) {
+      const baseMega = unit === 'giga' ? input * MEGA_PER_GIGA : input;
+      if (!Number.isFinite(baseMega)) return NaN;
+      if (app.type === 'social' && baseMega < 500) return baseMega / 2;
+      if (app.type === 'ai') return roundResult(baseMega * 0.5);
+      return roundResult(baseMega);
+    }
+    function normalizeRecords(value) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+      const clean = {};
+      for (const app of apps) {
+        const list = Array.isArray(value[app.id]) ? value[app.id] : [];
+        clean[app.id] = list.slice(-MAX_RECORDS).map(r => {
+          const input = Number(r?.originalInput);
+          const unit = r?.originalUnit === 'giga' ? 'giga' : 'mega';
+          const result = roundResult(calculateResultMega(app, input, unit));
+          // إعادة الحساب من المدخل الأصلي تصلح السجلات القديمة التي حُفظت بمعامل خاطئ.
+          return Number.isFinite(input) && input > 0 && input <= MAX_INPUT_VALUE && Number.isFinite(result) && result >= 0
+            ? {originalInput: input, originalUnit: unit, resultMega: result, createdAt: Number(r?.createdAt) || Date.now()}
+            : null;
+        }).filter(Boolean);
+        if (!clean[app.id].length) delete clean[app.id];
+      }
+      return clean;
+    }
+    function loadRecords() {
+      try {
+        const keys = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS];
+        for (const key of keys) {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = normalizeRecords(JSON.parse(raw));
+          if (Object.keys(parsed).length || key === STORAGE_KEY) {
+            if (key !== STORAGE_KEY && Object.keys(parsed).length) localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            return parsed;
+          }
+        }
+      } catch {}
+      return {};
+    }
+    function persist() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeRecords(records))); }
+      catch { showToast('تعذر الحفظ في ذاكرة الجهاز؛ يمكنك تنزيل نسخة TXT.', 'error'); }
+    }
+    function esc(v) { const d = document.createElement('div'); d.textContent = String(v); return d.innerHTML; }
+    // تنسيق غربي مقصود: النقطة فاصلة عشرية والفاصلة ليست جزءاً من القيمة.
+    function fmt(v) { return new Intl.NumberFormat('en-US', {useGrouping: false, minimumFractionDigits:4, maximumFractionDigits:4}).format(Number(v) || 0); }
+    function roundResult(v) { const factor = 10 ** DISPLAY_DECIMALS; return Math.round((Number(v) + Number.EPSILON) * factor) / factor; }
+    function formatMega(v) { const n = roundResult(Number(v) || 0); return n >= MEGA_PER_GIGA ? `${fmt(n / MEGA_PER_GIGA)} جيجا بايت` : `${fmt(n)} ميجا بايت`; }
+    function countRecords() { return Object.values(records).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0); }
+    function totalMega() { return Object.values(records).flatMap(list => Array.isArray(list) ? list : []).reduce((sum, r) => sum + (Number(r.resultMega) || 0), 0); }
+
+    function beep(type) {
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+        const osc = audioContext.createOscillator(), gain = audioContext.createGain();
+        osc.connect(gain); gain.connect(audioContext.destination);
+        const now = audioContext.currentTime, duration = type === 'success' ? .12 : .04;
+        osc.type = type === 'success' ? 'triangle' : 'sine'; osc.frequency.setValueAtTime(type === 'success' ? 523 : 400, now);
+        gain.gain.setValueAtTime(.02, now); gain.gain.exponentialRampToValueAtTime(.001, now + duration); osc.start(now); osc.stop(now + duration);
+      } catch {}
+    }
+    function showToast(message, type='info') {
+      const toast = document.createElement('div');
+      const palette = type === 'success' ? 'border-emerald-500/50 bg-emerald-950/95 text-emerald-200' : type === 'error' ? 'border-rose-500/50 bg-rose-950/95 text-rose-200' : 'border-slate-700 bg-slate-950/95 text-slate-200';
+      toast.className = `pointer-events-auto rounded-xl border px-3.5 py-2.5 text-xs font-semibold shadow-xl ${palette}`; toast.textContent = message;
+      $('toastContainer').appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .2s'; setTimeout(() => toast.remove(), 220); }, 2400);
+    }
+
+    function renderApps() {
+      $('appsGrid').replaceChildren(...apps.map(app => {
+        const hasData = Array.isArray(records[app.id]) && records[app.id].length;
+        const card = document.createElement('button'); card.type = 'button'; card.className = `app-card glass focus-ring relative flex min-h-28 flex-col items-center justify-center rounded-2xl border p-3 ${hasData ? 'border-indigo-500/60' : 'border-slate-800'} hover:border-indigo-400/50`; card.setAttribute('aria-label', `إضافة بيانات ${app.name}`);
+        card.innerHTML = `<span class="mb-1.5 flex h-10 w-10 items-center justify-center rounded-xl border ${app.bg} ${app.border} ${app.color} text-lg"><i class="${app.icon}"></i></span><span class="text-center text-xs font-bold text-slate-200">${esc(app.name)}</span>${app.desc ? `<span class="mt-0.5 text-center text-[9px] text-slate-400">${esc(app.desc)}</span>` : ''}${hasData ? '<span class="absolute left-2.5 top-2.5 h-2 w-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8]"></span>' : ''}`;
+        card.addEventListener('click', () => openSheet(app)); return card;
+      }));
+    }
+    function renderResults() {
+      const list = $('resultsList'), fragment = document.createDocumentFragment(); let count = 0;
+      apps.forEach(app => (Array.isArray(records[app.id]) ? records[app.id] : []).forEach((record, index) => {
+        count++; const row = document.createElement('div'); row.className = 'flex items-center justify-between gap-2 rounded-xl border border-slate-800/80 bg-slate-950/40 p-2.5 text-[11px]';
+        row.innerHTML = `<div class="flex min-w-0 items-center gap-2"><i class="${app.icon} ${app.color} text-xs"></i><div class="min-w-0"><div class="truncate font-bold text-slate-200">${esc(app.name)}</div><div class="truncate text-slate-400">${esc(record.originalInput)} ${record.originalUnit === 'giga' ? 'جيجا' : 'ميجا'} <span class="text-slate-600">→</span> <strong class="text-emerald-400">${formatMega(record.resultMega)}</strong></div></div></div><button class="delete-record focus-ring shrink-0 rounded-lg p-1.5 text-rose-400 hover:bg-rose-500/10" aria-label="حذف العملية"><i class="fa-solid fa-trash-can text-xs"></i></button>`;
+        row.querySelector('.delete-record').addEventListener('click', () => deleteRecord(app.id, index)); fragment.appendChild(row);
+      }));
+      if (!count) { list.innerHTML = '<div class="py-8 text-center text-xs text-slate-500"><i class="fa-solid fa-folder-open mb-1.5 text-2xl opacity-30"></i><p>لا توجد بيانات مسجلة، اختر تطبيقاً وابدأ الحساب.</p></div>'; }
+      else list.replaceChildren(fragment);
+      $('totalOperationsCount').textContent = `${count} ${count === 1 ? 'عملية' : 'عمليات'}`; $('grandTotal').textContent = formatMega(totalMega());
+    }
+    function render() { renderApps(); renderResults(); }
+
+    function openSheet(app) { 
+      activeApp = app; 
+      $('modalTitle').innerHTML = `<i class="${app.icon} ${app.color}"></i><span>${esc(app.name)}</span>`; 
+      $('dataInput').value = ''; 
+      $('unitSelect').value = 'mega'; 
+      $('sheetBackdrop').classList.add('open'); 
+      $('inputSheet').classList.add('open'); 
+      $('inputSheet').setAttribute('aria-hidden','false'); 
+      document.body.classList.add('no-scroll');
+      syncVisualViewport();
+      setTimeout(() => { $('dataInput').focus(); syncVisualViewport(); }, 70); 
+    }
+    function closeSheet() { 
+      $('sheetBackdrop').classList.remove('open'); 
+      $('inputSheet').classList.remove('open'); 
+      $('inputSheet').style.bottom = '0px';
+      document.documentElement.style.removeProperty('--viewport-height');
+      $('inputSheet').setAttribute('aria-hidden','true'); 
+      document.body.classList.remove('no-scroll'); 
+      activeApp = null; 
+    }
+
+    // إدارة الكيبورد بثبات: نستخدم ارتفاع نافذة العرض المرئية فقط.
+    // في وضع adjustResize يتغير innerHeight، لذلك لا نضيف إزاحة مزدوجة.
+    function syncVisualViewport() {
+      const viewport = window.visualViewport;
+      if (!viewport) return;
+      const visibleHeight = Math.max(1, viewport.height);
+      document.documentElement.style.setProperty('--viewport-height', `${visibleHeight}px`);
+      if (!activeApp) return;
+      const keyboardHeight = Math.max(0, window.innerHeight - visibleHeight - viewport.offsetTop);
+      const sheet = $('inputSheet');
+      // نحرّك النافذة فقط عندما تكون لوحة المفاتيح ظاهرة فعلاً.
+      sheet.style.bottom = keyboardHeight > 50 ? `${keyboardHeight}px` : '0px';
+      if (keyboardHeight > 50) {
+        requestAnimationFrame(() => $('dataInput').scrollIntoView({block: 'center', behavior: 'smooth'}));
+      }
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncVisualViewport, {passive: true});
+      window.visualViewport.addEventListener('scroll', syncVisualViewport, {passive: true});
+    }
+    window.addEventListener('resize', syncVisualViewport, {passive: true});
+
+    function addRecord(event) {
+      event.preventDefault(); if (!activeApp) return; const input = Number($('dataInput').value); const unit = $('unitSelect').value;
+      if (!Number.isFinite(input) || input <= 0) { showToast('أدخل قيمة رقمية موجبة وصحيحة.', 'error'); $('dataInput').focus(); return; }
+      if (input > MAX_INPUT_VALUE) { showToast('القيمة كبيرة جداً. الحد الأقصى هو 1,000,000,000.', 'error'); $('dataInput').focus(); return; }
+      const resultMega = roundResult(calculateResultMega(activeApp, input, unit));
+      if (!Number.isFinite(resultMega)) { showToast('تعذر حساب القيمة؛ جرّب رقماً أصغر.', 'error'); return; }
+      records[activeApp.id] ||= []; records[activeApp.id].push({originalInput: input, originalUnit: unit, resultMega, createdAt: Date.now()}); persist(); beep('success'); closeSheet(); render(); showToast('تمت إضافة العملية بنجاح.', 'success');
+    }
+    function deleteRecord(appId, index) { if (!Array.isArray(records[appId])) return; records[appId].splice(index, 1); if (!records[appId].length) delete records[appId]; persist(); beep('click'); render(); showToast('تم حذف العملية.', 'info'); }
+    function resetAll() { if (!countRecords()) { showToast('لا توجد سجلات لمسحها.', 'info'); return; } if (confirm('هل تريد مسح جميع السجلات نهائياً؟')) { records = {}; persist(); render(); showToast('تم مسح جميع السجلات.', 'success'); } }
+    
+    async function copySummary() {
+      if (!countRecords()) { showToast('لا توجد بيانات للنسخ.', 'error'); return; }
+      const lines = ['ملخص استهلاك البيانات:']; apps.forEach(app => (records[app.id] || []).forEach(r => lines.push(`- ${app.name}: ${r.originalInput} ${r.originalUnit === 'giga' ? 'جيجا' : 'ميجا'} → ${formatMega(r.resultMega)}`))); lines.push(`\nالمجموع الكلي: ${formatMega(totalMega())}`); const text = lines.join('\n');
+      try { await navigator.clipboard.writeText(text); showToast('تم نسخ الملخص إلى الحافظة.', 'success'); } catch { const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); showToast('تم نسخ الملخص.', 'success'); }
+    }
+
+    // ميزة تنزيل الملفات الحسابية
+    function buildReportText() {
+      const separator = '═'.repeat(56);
+      const thin = '─'.repeat(56);
+      const now = new Date();
+      const lines = [
+        separator,
+        '                 تقرير حاسبة البيانات الاحترافية',
+        separator,
+        `تاريخ ووقت التصدير : ${now.toLocaleString('ar-EG')}`,
+        `عدد العمليات       : ${countRecords()}`,
+        `المجموع المعتمد    : ${formatMega(totalMega())}`,
+        '',
+        'تفاصيل العمليات',
+        thin
+      ];
+      let appNumber = 0;
+      apps.forEach(app => {
+        const list = Array.isArray(records[app.id]) ? records[app.id] : [];
+        if (!list.length) return;
+        appNumber++;
+        const subtotal = list.reduce((sum, r) => sum + (Number(r.resultMega) || 0), 0);
+        lines.push(`${appNumber}. ${app.name} | عدد العمليات: ${list.length} | المجموع: ${formatMega(subtotal)}`);
+        lines.push('   ' + '·'.repeat(52));
+        list.forEach((r, idx) => {
+          const unit = r.originalUnit === 'giga' ? 'جيجا بايت (GB)' : 'ميجا بايت (MB)';
+          lines.push(`   ${String(idx + 1).padStart(3, '0')}) المدخل: ${r.originalInput} ${unit}`);
+          lines.push(`       الناتج: ${formatMega(r.resultMega)}`);
+        });
+        lines.push('');
+      });
+      lines.push(thin, `الإجمالي النهائي: ${formatMega(totalMega())}`, separator, 'تم إنشاء هذا التقرير تلقائياً من موقع حاسبة البيانات.', separator);
+      return lines.join('\n');
+    }
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = filename; link.rel = 'noopener'; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+    function exportBackup() {
+      if (!countRecords()) { showToast('لا توجد بيانات لإنشاء نسخة احتياطية.', 'error'); return; }
+      try {
+        const payload = {format: 'smart-data-calculator-backup', version: 4, exportedAt: new Date().toISOString(), records: normalizeRecords(records)};
+        downloadBlob(new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json;charset=utf-8'}), `نسخة-حاسبة-البيانات-${new Date().toISOString().slice(0,10)}.json`);
+        showToast('تم إنشاء النسخة الاحتياطية بنجاح.', 'success');
+      } catch { showToast('تعذر إنشاء النسخة الاحتياطية.', 'error'); }
+    }
+    async function importBackup(file) {
+      if (!file) return;
+      try {
+        if (file.size > 2 * 1024 * 1024) throw new Error('size');
+        const payload = JSON.parse(await file.text());
+        const incoming = normalizeRecords(payload?.records || payload);
+        if (!Object.keys(incoming).length) throw new Error('empty');
+        if (countRecords() && !confirm('سيتم استبدال السجلات الحالية بالنسخة الاحتياطية. هل تريد المتابعة؟')) return;
+        records = incoming; persist(); render(); showToast('تم استرجاع النسخة الاحتياطية بنجاح.', 'success');
+      } catch { showToast('ملف النسخة الاحتياطية غير صالح أو تالف.', 'error'); }
+      $('backupInput').value = '';
+    }
+    function downloadReportFile() {
+      if (!countRecords()) { showToast('لا توجد بيانات لتنزيلها في ملف.', 'error'); return; }
+      try {
+        const text = '\uFEFF' + buildReportText();
+        const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+        downloadBlob(blob, `تقرير-البيانات-${new Date().toISOString().slice(0,10)}.txt`);
+        showToast('تم تنزيل التقرير المنظم بنجاح.', 'success');
+      } catch { showToast('تعذر إنشاء الملف على هذا المتصفح.', 'error'); }
+    }
+
+    let drag = null;
+    function beginDrag(event) { if (!event.isPrimary) return; drag = {startY: event.clientY, currentY: 0}; $('inputSheet').classList.add('dragging'); $('sheetHandle').setPointerCapture?.(event.pointerId); }
+    function moveDrag(event) { if (!drag) return; drag.currentY = Math.max(0, event.clientY - drag.startY); $('inputSheet').style.transform = `translateY(${drag.currentY}px)`; }
+    function endDrag() { if (!drag) return; const shouldClose = drag.currentY > 80; $('inputSheet').classList.remove('dragging'); $('inputSheet').style.transform = ''; drag = null; if (shouldClose) closeSheet(); }
+
+    $('dataForm').addEventListener('submit', addRecord); 
+    $('closeBtn').addEventListener('click', closeSheet); 
+    $('cancelBtn').addEventListener('click', closeSheet); 
+    $('sheetBackdrop').addEventListener('click', closeSheet); 
+    $('copyBtn').addEventListener('click', copySummary); 
+    $('resetBtn').addEventListener('click', resetAll); 
+    $('downloadBtn').addEventListener('click', downloadReportFile);
+    $('backupBtn').addEventListener('click', exportBackup);
+    $('restoreBtn').addEventListener('click', () => $('backupInput').click());
+    $('backupInput').addEventListener('change', event => importBackup(event.target.files?.[0]));
+    $('sheetHandle').addEventListener('pointerdown', beginDrag); 
+    $('sheetHandle').addEventListener('pointermove', moveDrag); 
+    $('sheetHandle').addEventListener('pointerup', endDrag); 
+    $('sheetHandle').addEventListener('pointercancel', endDrag);
+    
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && activeApp) closeSheet(); });
+    render();
+  </script>
+</body>
+</html>
